@@ -20,6 +20,9 @@ struct cg_output {
 	struct wl_listener damage_destroy;
 
 	struct wl_list link; // cg_server::outputs
+
+	// layers. one for every layer position (bottom, top etc) as defined in protocol
+	struct wl_list layers[4]; // cg_layers::link
 };
 
 typedef void (*cg_surface_iterator_func_t)(struct cg_output *output, struct wlr_surface *surface, struct wlr_box *box,

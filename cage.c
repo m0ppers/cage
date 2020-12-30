@@ -26,6 +26,7 @@
 #include <wlr/types/wlr_gamma_control_v1.h>
 #include <wlr/types/wlr_idle.h>
 #include <wlr/types/wlr_idle_inhibit_v1.h>
+#include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_screencopy_v1.h>
 #include <wlr/types/wlr_server_decoration.h>
@@ -41,6 +42,7 @@
 #endif
 
 #include "idle_inhibit_v1.h"
+#include "layer_shell.h"
 #include "output.h"
 #include "seat.h"
 #include "server.h"
@@ -271,6 +273,8 @@ main(int argc, char *argv[])
 	struct wlr_xdg_output_manager_v1 *output_manager = NULL;
 	struct wlr_gamma_control_manager_v1 *gamma_control_manager = NULL;
 	struct wlr_xdg_shell *xdg_shell = NULL;
+	struct wlr_layer_shell_v1 *layer_shell = NULL;
+
 #if CAGE_HAS_XWAYLAND
 	struct wlr_xwayland *xwayland = NULL;
 	struct wlr_xcursor_manager *xcursor_manager = NULL;
@@ -381,6 +385,15 @@ main(int argc, char *argv[])
 	}
 	server.new_xdg_shell_surface.notify = handle_xdg_shell_surface_new;
 	wl_signal_add(&xdg_shell->events.new_surface, &server.new_xdg_shell_surface);
+
+	layer_shell = wlr_layer_shell_v1_create(server.wl_display);
+	if (!layer_shell) {
+		wlr_log(WLR_ERROR, "Unable to create the layer shell interface");
+		ret = 1;
+		goto end;
+	}
+	server.new_layer_shell_surface.notify = handle_layer_shell_surface_new;
+	wl_signal_add(&layer_shell->events.new_surface, &server.new_layer_shell_surface);
 
 	xdg_decoration_manager = wlr_xdg_decoration_manager_v1_create(server.wl_display);
 	if (!xdg_decoration_manager) {

@@ -6,6 +6,7 @@
 #include <wlr/types/wlr_data_device.h>
 #include <wlr/types/wlr_input_device.h>
 #include <wlr/types/wlr_seat.h>
+#include <wlr/types/wlr_virtual_keyboard_v1.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 
 #include "server.h"
@@ -23,6 +24,7 @@ struct cg_seat {
 	struct wl_list keyboard_groups;
 	struct wl_list pointers;
 	struct wl_list touch;
+	struct wl_list virtual_keyboards;
 	struct wl_listener new_input;
 
 	struct wlr_cursor *cursor;
@@ -47,6 +49,9 @@ struct cg_seat {
 	struct wl_listener request_set_cursor;
 	struct wl_listener request_set_selection;
 	struct wl_listener request_set_primary_selection;
+
+	struct wlr_virtual_keyboard_manager_v1 *virtual_keyboard;
+	struct wl_listener virtual_keyboard_new;
 };
 
 struct cg_keyboard_group {
@@ -55,6 +60,14 @@ struct cg_keyboard_group {
 	struct wl_listener key;
 	struct wl_listener modifiers;
 	struct wl_list link; // cg_seat::keyboard_groups
+};
+
+struct cg_virtual_keyboard {
+	struct wl_list link;
+	struct cg_seat *seat;
+	struct wlr_input_device *device;
+
+	struct wl_listener destroy;
 };
 
 struct cg_pointer {

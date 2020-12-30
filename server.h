@@ -41,6 +41,7 @@ struct cg_server {
 
 	struct wl_listener xdg_toplevel_decoration;
 	struct wl_listener new_xdg_shell_surface;
+	struct wl_listener new_layer_shell_surface;
 #if CAGE_HAS_XWAYLAND
 	struct wl_listener new_xwayland_surface;
 #endif

@@ -18,6 +18,7 @@
 #include <wlr/util/log.h>
 #include <wlr/util/region.h>
 
+#include "layer_shell.h"
 #include "output.h"
 #include "seat.h"
 #include "server.h"
@@ -138,6 +139,19 @@ render_view_popups(struct cg_view *view, struct cg_output *output, pixman_region
 	output_view_for_each_popup(output, view, render_popup_iterator, &data);
 }
 
+static void
+render_layer(struct cg_output *output, struct wl_list *layer_surfaces, pixman_region32_t *damage)
+{
+	// struct cg_layer_surface *layer_surface;
+	// struct render_data rdata = {
+	// 	.damage = damage,
+	// };
+	// wl_list_for_each (layer_surface, layer_surfaces, link) {
+	// 	output_surface_for_each_surface(output, layer_surface->wlr_layer_surface->surface, layer_surface->geo.x,
+	// 					layer_surface->geo.y, render_surface_iterator, &rdata);
+	// }
+}
+
 void
 output_render(struct cg_output *output, pixman_region32_t *damage)
 {
@@ -171,6 +185,9 @@ output_render(struct cg_output *output, pixman_region32_t *damage)
 		wlr_renderer_clear(renderer, color);
 	}
 
+	render_layer(output, &output->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND], damage);
+	render_layer(output, &output->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM], damage);
+
 	// TODO: render only top view, possibly use focused view for this, see #35.
 	struct cg_view *view;
 	wl_list_for_each_reverse (view, &server->views, link) {
@@ -181,8 +198,10 @@ output_render(struct cg_output *output, pixman_region32_t *damage)
 	if (focused_view) {
 		render_view_popups(focused_view, output, damage);
 	}
-
+	// unsure about order
+	render_layer(output, &output->layers[ZWLR_LAYER_SHELL_V1_LAYER_TOP], damage);
 	render_drag_icons(output, damage, &server->seat->drag_icons);
+	render_layer(output, &output->layers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY], damage);
 
 renderer_end:
 	/* Draw software cursor in case hardware cursors aren't

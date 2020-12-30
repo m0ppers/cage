@@ -51,6 +51,8 @@ wayland_scanner_server = generator(
 
 server_protocols = [
   [wl_protocol_dir, 'stable/xdg-shell/xdg-shell.xml'],
+  # work is going on to standardize it: https://gitlab.freedesktop.org/wayland/wayland-protocols/-/merge_requests/28
+  ['protocols/wlr-layer-shell-unstable-v1.xml'],
 ]
 
 server_protos_headers = []
@@ -122,6 +124,7 @@ endif
 cage_sources = [
   'cage.c',
   'idle_inhibit_v1.c',
+  'layer_shell.c',
   'output.c',
   'render.c',
   'seat.c',

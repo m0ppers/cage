@@ -739,6 +739,47 @@ handle_destroy(struct wl_listener *listener, void *data)
 	free(seat);
 }
 
+static void
+handle_virtual_keyboard_destroy(struct wl_listener *listener, void *data)
+{
+	struct cg_virtual_keyboard *virtual_keyboard = wl_container_of(listener, virtual_keyboard, destroy);
+	struct cg_seat *seat = virtual_keyboard->seat;
+
+	wl_list_remove(&virtual_keyboard->link);
+	// wlr_cursor_detach_input_device(seat->cursor, touch->device);
+	wl_list_remove(&virtual_keyboard->destroy.link);
+	free(virtual_keyboard);
+
+	update_capabilities(seat);
+}
+
+void
+handle_new_virtual_keyboard(struct wl_listener *listener, void *data)
+{
+	struct wlr_virtual_keyboard_v1 *keyboard = data;
+	struct wlr_input_device *device = &keyboard->input_device;
+
+	struct cg_seat *seat = wl_container_of(listener, seat, virtual_keyboard_new);
+
+	struct cg_virtual_keyboard *virtual_keyboard = calloc(1, sizeof(struct cg_virtual_keyboard));
+	if (!virtual_keyboard) {
+		wlr_log(WLR_ERROR, "Cannot allocate virtual keyboard");
+		return;
+	}
+	device->data = virtual_keyboard;
+
+	virtual_keyboard->device = device;
+	virtual_keyboard->seat = seat;
+	wl_list_insert(&seat->virtual_keyboards, &virtual_keyboard->link);
+
+	wlr_log(WLR_DEBUG, "adding virtual keyboard");
+
+	wl_signal_add(&device->events.destroy, &virtual_keyboard->destroy);
+	virtual_keyboard->destroy.notify = handle_virtual_keyboard_destroy;
+
+	// map_input_device_to_output(seat, device);
+}
+
 struct cg_seat *
 seat_create(struct cg_server *server, struct wlr_backend *backend)
 {
@@ -807,6 +848,7 @@ seat_create(struct cg_server *server, struct wlr_backend *backend)
 	wl_list_init(&seat->keyboard_groups);
 	wl_list_init(&seat->pointers);
 	wl_list_init(&seat->touch);
+	wl_list_init(&seat->virtual_keyboards);
 
 	seat->new_input.notify = handle_new_input;
 	wl_signal_add(&backend->events.new_input, &seat->new_input);
@@ -816,6 +858,10 @@ seat_create(struct cg_server *server, struct wlr_backend *backend)
 	wl_signal_add(&seat->seat->events.request_start_drag, &seat->request_start_drag);
 	seat->start_drag.notify = handle_start_drag;
 	wl_signal_add(&seat->seat->events.start_drag, &seat->start_drag);
+
+	seat->virtual_keyboard = wlr_virtual_keyboard_manager_v1_create(server->wl_display);
+	wl_signal_add(&seat->virtual_keyboard->events.new_virtual_keyboard, &seat->virtual_keyboard_new);
+	seat->virtual_keyboard_new.notify = handle_new_virtual_keyboard;
 
 	return seat;
 }

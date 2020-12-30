@@ -446,6 +446,7 @@ handle_new_output(struct wl_listener *listener, void *data)
 	}
 
 	output->wlr_output = wlr_output;
+	wlr_output->data = output;
 	output->server = server;
 	output->damage = wlr_output_damage_create(wlr_output);
 	wl_list_insert(&server->outputs, &output->link);
@@ -484,6 +485,11 @@ handle_new_output(struct wl_listener *listener, void *data)
 	struct cg_view *view;
 	wl_list_for_each (view, &output->server->views, link) {
 		view_position(view);
+	}
+
+	size_t len = sizeof(output->layers) / sizeof(output->layers[0]);
+	for (size_t i = 0; i < len; ++i) {
+		wl_list_init(&output->layers[i]);
 	}
 }
 
