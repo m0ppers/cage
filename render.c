@@ -140,16 +140,16 @@ render_view_popups(struct cg_view *view, struct cg_output *output, pixman_region
 }
 
 static void
-render_layer(struct cg_output *output, struct wl_list *layer_surfaces, pixman_region32_t *damage)
+render_layer(struct cg_output *output, struct wl_list *layer_shells, pixman_region32_t *damage)
 {
-	// struct cg_layer_surface *layer_surface;
-	// struct render_data rdata = {
-	// 	.damage = damage,
-	// };
-	// wl_list_for_each (layer_surface, layer_surfaces, link) {
-	// 	output_surface_for_each_surface(output, layer_surface->wlr_layer_surface->surface, layer_surface->geo.x,
-	// 					layer_surface->geo.y, render_surface_iterator, &rdata);
-	// }
+	struct cg_layer_shell *layer_shell;
+	struct render_data rdata = {
+		.damage = damage,
+	};
+	wl_list_for_each (layer_shell, layer_shells, link) {
+		output_surface_for_each_surface(output, layer_shell->wlr_layer_surface->surface, layer_shell->geo.x,
+						layer_shell->geo.y, render_surface_iterator, &rdata);
+	}
 }
 
 void
@@ -190,7 +190,10 @@ output_render(struct cg_output *output, pixman_region32_t *damage)
 
 	// TODO: render only top view, possibly use focused view for this, see #35.
 	struct cg_view *view;
+	int width, height;
 	wl_list_for_each_reverse (view, &server->views, link) {
+		view->impl->get_geometry(view, &width, &height);
+		wlr_log(WLR_DEBUG, "geo %dx%d", width, height);
 		render_view_toplevels(view, output, damage);
 	}
 

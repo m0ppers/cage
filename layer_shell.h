@@ -7,8 +7,7 @@
 
 #include "seat.h"
 
-struct cg_layer_shell_view {
-	struct cg_view view;
+struct cg_layer_shell {
 	struct wlr_layer_surface_v1 *wlr_layer_surface;
 
 	// struct cg_seat *seat;

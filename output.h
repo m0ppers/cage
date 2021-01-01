@@ -23,6 +23,7 @@ struct cg_output {
 
 	// layers. one for every layer position (bottom, top etc) as defined in protocol
 	struct wl_list layers[4]; // cg_layers::link
+	struct wlr_box usable_area;
 };
 
 typedef void (*cg_surface_iterator_func_t)(struct cg_output *output, struct wlr_surface *surface, struct wlr_box *box,

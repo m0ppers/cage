@@ -31,6 +31,7 @@
 #include <wlr/util/log.h>
 #include <wlr/util/region.h>
 
+#include "arrange.h"
 #include "output.h"
 #include "render.h"
 #include "seat.h"
@@ -233,6 +234,9 @@ scan_out_primary_view(struct cg_output *output)
 	}
 
 	wlr_output_attach_buffer(wlr_output, &surface->buffer->base);
+	// if (!wlr_output_test(wlr_output)) {
+	// 	return false;
+	// }
 	return wlr_output_commit(wlr_output);
 }
 
@@ -361,15 +365,13 @@ static void
 handle_output_transform(struct wl_listener *listener, void *data)
 {
 	struct cg_output *output = wl_container_of(listener, output, transform);
+	wlr_log(WLR_DEBUG, "gmmmmm output_transform");
 
 	if (!output->wlr_output->enabled) {
 		return;
 	}
 
-	struct cg_view *view;
-	wl_list_for_each (view, &output->server->views, link) {
-		view_position(view);
-	}
+	arrange_server(output->server);
 }
 
 static void
@@ -381,10 +383,7 @@ handle_output_mode(struct wl_listener *listener, void *data)
 		return;
 	}
 
-	struct cg_view *view;
-	wl_list_for_each (view, &output->server->views, link) {
-		view_position(view);
-	}
+	arrange_server(output->server);
 }
 
 static void
@@ -410,10 +409,7 @@ output_destroy(struct cg_output *output)
 		if (prev) {
 			output_enable(prev);
 
-			struct cg_view *view;
-			wl_list_for_each (view, &server->views, link) {
-				view_position(view);
-			}
+			arrange_server(prev->server);
 		}
 	}
 }
@@ -480,17 +476,14 @@ handle_new_output(struct wl_listener *listener, void *data)
 			wlr_output->scale);
 	}
 
-	output_enable(output);
-
-	struct cg_view *view;
-	wl_list_for_each (view, &output->server->views, link) {
-		view_position(view);
-	}
-
 	size_t len = sizeof(output->layers) / sizeof(output->layers[0]);
 	for (size_t i = 0; i < len; ++i) {
 		wl_list_init(&output->layers[i]);
 	}
+
+	output_enable(output);
+
+	arrange_server(output->server);
 }
 
 void

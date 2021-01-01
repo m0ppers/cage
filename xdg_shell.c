@@ -162,6 +162,7 @@ get_geometry(struct cg_view *view, int *width_out, int *height_out)
 	struct wlr_box geom;
 
 	wlr_xdg_surface_get_geometry(xdg_shell_view->xdg_surface, &geom);
+
 	*width_out = geom.width;
 	*height_out = geom.height;
 }
@@ -205,6 +206,7 @@ static void
 maximize(struct cg_view *view, int output_width, int output_height)
 {
 	struct cg_xdg_shell_view *xdg_shell_view = xdg_shell_view_from_view(view);
+	wlr_log(WLR_DEBUG, "Setting xdg size %dx%d", output_width, output_height);
 	wlr_xdg_toplevel_set_size(xdg_shell_view->xdg_surface, output_width, output_height);
 	wlr_xdg_toplevel_set_maximized(xdg_shell_view->xdg_surface, true);
 }

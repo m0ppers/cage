@@ -122,6 +122,7 @@ if scdoc.found()
 endif
 
 cage_sources = [
+  'arrange.c',
   'cage.c',
   'idle_inhibit_v1.c',
   'layer_shell.c',
@@ -137,7 +138,9 @@ cage_headers = [
   configure_file(input: 'config.h.in',
                  output: 'config.h',
                  configuration: conf_data),
+  'arrange.h',
   'idle_inhibit_v1.h',
+  'layer_shell.h',
   'output.h',
   'render.h',
   'seat.h',

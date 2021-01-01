@@ -15,6 +15,7 @@
 #include <wlr/types/wlr_box.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_surface.h>
+#include <wlr/util/log.h>
 
 #include "output.h"
 #include "seat.h"
@@ -192,6 +193,17 @@ view_position(struct cg_view *view)
 {
 	struct wlr_box *layout_box = wlr_output_layout_get_box(view->server->output_layout, NULL);
 
+	struct cg_output *output = NULL;
+	wl_list_for_each (output, &view->server->outputs, link) {
+		if (output->usable_area.width < layout_box->width) {
+			layout_box->width = output->usable_area.width;
+		}
+		if (output->usable_area.height < layout_box->height) {
+			layout_box->height = output->usable_area.height;
+		}
+	}
+
+	wlr_log(WLR_DEBUG, "view position layout box %dx%d", layout_box->width, layout_box->height);
 	if (view_is_primary(view) || view_extends_output_layout(view, layout_box)) {
 		view_maximize(view, layout_box);
 	} else {

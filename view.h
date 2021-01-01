@@ -19,7 +19,6 @@ enum cg_view_type {
 #if CAGE_HAS_XWAYLAND
 	CAGE_XWAYLAND_VIEW,
 #endif
-	CAGE_LAYER_SHELL_VIEW,
 };
 
 struct cg_view {
