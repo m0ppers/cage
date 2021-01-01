@@ -128,6 +128,7 @@ press_cursor_button(struct cg_seat *seat, struct wlr_input_device *device, uint3
 
 	if (state == WLR_BUTTON_PRESSED) {
 		double sx, sy;
+		struct wlr_surface *surface;
 		struct cg_view *view = desktop_view_at(server, lx, ly, &surface, &sx, &sy);
 		struct cg_view *current = seat_get_focus(seat);
 		if (view == current) {
