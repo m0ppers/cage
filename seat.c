@@ -26,6 +26,7 @@
 #include <wlr/xwayland.h>
 #endif
 
+#include "layer_shell.h"
 #include "output.h"
 #include "seat.h"
 #include "server.h"
@@ -78,6 +79,47 @@ desktop_view_at(struct cg_server *server, double lx, double ly, struct wlr_surfa
 	return NULL;
 }
 
+static struct wlr_surface *
+layer_surface_at(struct cg_server *server, enum zwlr_layer_shell_v1_layer layer, double x, double y, double *sx,
+		 double *sy)
+{
+	struct cg_output *output = NULL;
+	struct cg_layer_shell *layer_shell = NULL;
+	struct wlr_surface *surface;
+	wl_list_for_each (output, &server->outputs, link) {
+		wl_list_for_each_reverse (layer_shell, &output->layers[layer], link) {
+			if (!layer_shell->wlr_layer_surface->mapped)
+				continue;
+			surface = wlr_layer_surface_v1_surface_at(
+				layer_shell->wlr_layer_surface, x - layer_shell->geo.x, y - layer_shell->geo.y, sx, sy);
+			if (surface)
+				return surface;
+		}
+	}
+	return NULL;
+}
+
+static struct wlr_surface *
+view_surface_at(struct cg_server *server, double x, double y, double *sx, double *sy)
+{
+	struct wlr_surface *surface = NULL;
+	desktop_view_at(server, x, y, &surface, sx, sy);
+	return surface;
+}
+
+static struct wlr_surface *
+surface_at(struct cg_server *server, double x, double y, double *sx, double *sy)
+{
+	struct wlr_surface *surface = NULL;
+	if ((surface = layer_surface_at(server, ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY, x, y, sx, sy))) {
+	} else if ((surface = layer_surface_at(server, ZWLR_LAYER_SHELL_V1_LAYER_TOP, x, y, sx, sy))) {
+	} else if ((surface = view_surface_at(server, x, y, sx, sy))) {
+	} else if ((surface = layer_surface_at(server, ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM, x, y, sx, sy))) {
+	} else if ((surface = layer_surface_at(server, ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND, x, y, sx, sy))) {
+	}
+	return surface;
+}
+
 static void
 press_cursor_button(struct cg_seat *seat, struct wlr_input_device *device, uint32_t time, uint32_t button,
 		    uint32_t state, double lx, double ly)
@@ -86,7 +128,6 @@ press_cursor_button(struct cg_seat *seat, struct wlr_input_device *device, uint3
 
 	if (state == WLR_BUTTON_PRESSED) {
 		double sx, sy;
-		struct wlr_surface *surface;
 		struct cg_view *view = desktop_view_at(server, lx, ly, &surface, &sx, &sy);
 		struct cg_view *current = seat_get_focus(seat);
 		if (view == current) {
@@ -293,43 +334,38 @@ handle_keyboard_group_modifiers(struct wl_listener *listener, void *data)
 }
 
 static void
-cg_keyboard_group_add(struct wlr_input_device *device, struct cg_seat *seat)
+cg_keyboard_group_add(struct wlr_input_device *device, struct cg_seat *seat, bool force_new)
 {
 	struct wlr_keyboard *wlr_keyboard = device->keyboard;
 
-	struct cg_keyboard_group *group;
-	wl_list_for_each (group, &seat->keyboard_groups, link) {
-		struct wlr_keyboard_group *wlr_group = group->wlr_group;
-		if (wlr_keyboard_group_add_keyboard(wlr_group, wlr_keyboard)) {
-			wlr_log(WLR_DEBUG, "Added new keyboard to existing group");
-			return;
+	struct cg_keyboard_group *cg_group = NULL;
+	struct wlr_keyboard_group *wlr_group = NULL;
+	if (wl_list_empty(&seat->keyboard_groups) || force_new) {
+		cg_group = calloc(1, sizeof(struct cg_keyboard_group));
+		if (cg_group == NULL) {
+			wlr_log(WLR_ERROR, "Failed to allocate keyboard group.");
+			goto cleanup;
 		}
+		cg_group->seat = seat;
+		cg_group->wlr_group = wlr_keyboard_group_create();
+		if (cg_group->wlr_group == NULL) {
+			wlr_log(WLR_ERROR, "Failed to create wlr keyboard group.");
+			goto cleanup;
+		}
+
+		cg_group->wlr_group->data = cg_group;
+		wlr_log(WLR_DEBUG, "Created keyboard group");
+		wl_list_insert(&seat->keyboard_groups, &cg_group->link);
+		wlr_keyboard_set_keymap(&cg_group->wlr_group->keyboard, device->keyboard->keymap);
+		wlr_keyboard_set_repeat_info(&cg_group->wlr_group->keyboard, wlr_keyboard->repeat_info.rate,
+					     wlr_keyboard->repeat_info.delay);
+	} else {
+		cg_group = wl_container_of(seat->keyboard_groups.next, cg_group, link);
+		wlr_log(WLR_DEBUG, "Assigning keyboard to existing group");
 	}
-
-	/* This is reached if and only if the keyboard could not be inserted into
-	 * any group */
-	struct cg_keyboard_group *cg_group = calloc(1, sizeof(struct cg_keyboard_group));
-	if (cg_group == NULL) {
-		wlr_log(WLR_ERROR, "Failed to allocate keyboard group.");
-		return;
-	}
-	cg_group->seat = seat;
-	cg_group->wlr_group = wlr_keyboard_group_create();
-	if (cg_group->wlr_group == NULL) {
-		wlr_log(WLR_ERROR, "Failed to create wlr keyboard group.");
-		goto cleanup;
-	}
-
-	cg_group->wlr_group->data = cg_group;
-	wlr_keyboard_set_keymap(&cg_group->wlr_group->keyboard, device->keyboard->keymap);
-
-	wlr_keyboard_set_repeat_info(&cg_group->wlr_group->keyboard, wlr_keyboard->repeat_info.rate,
-				     wlr_keyboard->repeat_info.delay);
-
-	wlr_log(WLR_DEBUG, "Created keyboard group");
+	wlr_group = cg_group->wlr_group;
 
 	wlr_keyboard_group_add_keyboard(cg_group->wlr_group, wlr_keyboard);
-	wl_list_insert(&seat->keyboard_groups, &cg_group->link);
 
 	wl_signal_add(&cg_group->wlr_group->keyboard.events.key, &cg_group->key);
 	cg_group->key.notify = handle_keyboard_group_key;
@@ -346,7 +382,7 @@ cleanup:
 }
 
 static void
-handle_new_keyboard(struct cg_seat *seat, struct wlr_input_device *device)
+handle_new_keyboard(struct cg_seat *seat, struct wlr_input_device *device, bool force_new_group)
 {
 	struct xkb_context *context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
 	if (!context) {
@@ -373,7 +409,7 @@ handle_new_keyboard(struct cg_seat *seat, struct wlr_input_device *device)
 	xkb_context_unref(context);
 	wlr_keyboard_set_repeat_info(device->keyboard, 25, 600);
 
-	cg_keyboard_group_add(device, seat);
+	cg_keyboard_group_add(device, seat, force_new_group);
 
 	wlr_seat_set_keyboard(seat->seat, device);
 }
@@ -386,7 +422,7 @@ handle_new_input(struct wl_listener *listener, void *data)
 
 	switch (device->type) {
 	case WLR_INPUT_DEVICE_KEYBOARD:
-		handle_new_keyboard(seat, device);
+		handle_new_keyboard(seat, device, false);
 		break;
 	case WLR_INPUT_DEVICE_POINTER:
 		handle_new_pointer(seat, device);
@@ -453,11 +489,10 @@ handle_touch_down(struct wl_listener *listener, void *data)
 	wlr_cursor_absolute_to_layout_coords(seat->cursor, event->device, event->x, event->y, &lx, &ly);
 
 	double sx, sy;
-	struct wlr_surface *surface;
-	struct cg_view *view = desktop_view_at(seat->server, lx, ly, &surface, &sx, &sy);
+	struct wlr_surface *surface = surface_at(seat->server, lx, ly, &sx, &sy);
 
 	uint32_t serial = 0;
-	if (view) {
+	if (surface) {
 		serial = wlr_seat_touch_notify_down(seat->seat, surface, event->time_msec, event->touch_id, sx, sy);
 	}
 
@@ -504,10 +539,9 @@ handle_touch_motion(struct wl_listener *listener, void *data)
 	wlr_cursor_absolute_to_layout_coords(seat->cursor, event->device, event->x, event->y, &lx, &ly);
 
 	double sx, sy;
-	struct wlr_surface *surface;
-	struct cg_view *view = desktop_view_at(seat->server, lx, ly, &surface, &sx, &sy);
+	struct wlr_surface *surface = surface_at(seat->server, lx, ly, &sx, &sy);
 
-	if (view) {
+	if (surface) {
 		wlr_seat_touch_point_focus(seat->seat, surface, event->time_msec, event->touch_id, sx, sy);
 		wlr_seat_touch_notify_motion(seat->seat, event->time_msec, event->touch_id, sx, sy);
 	} else {
@@ -548,6 +582,8 @@ handle_cursor_button(struct wl_listener *listener, void *data)
 	struct cg_seat *seat = wl_container_of(listener, seat, cursor_button);
 	struct wlr_event_pointer_button *event = data;
 
+	wlr_log(WLR_DEBUG, "klicki!");
+
 	wlr_seat_pointer_notify_button(seat->seat, event->time_msec, event->button, event->state);
 	press_cursor_button(seat, event->device, event->time_msec, event->button, event->state, seat->cursor->x,
 			    seat->cursor->y);
@@ -559,11 +595,10 @@ process_cursor_motion(struct cg_seat *seat, uint32_t time)
 {
 	double sx, sy;
 	struct wlr_seat *wlr_seat = seat->seat;
-	struct wlr_surface *surface = NULL;
+	struct wlr_cursor *cursor = seat->cursor;
 
-	struct cg_view *view = desktop_view_at(seat->server, seat->cursor->x, seat->cursor->y, &surface, &sx, &sy);
-
-	if (!view) {
+	struct wlr_surface *surface = surface_at(seat->server, cursor->x, cursor->y, &sx, &sy);
+	if (!surface) {
 		wlr_seat_pointer_clear_focus(wlr_seat);
 	} else {
 		wlr_seat_pointer_notify_enter(wlr_seat, surface, sx, sy);
@@ -777,7 +812,9 @@ handle_new_virtual_keyboard(struct wl_listener *listener, void *data)
 	wl_signal_add(&device->events.destroy, &virtual_keyboard->destroy);
 	virtual_keyboard->destroy.notify = handle_virtual_keyboard_destroy;
 
-	// map_input_device_to_output(seat, device);
+	// FIXME always force a new group...otherwise keyboard input gets totally messed up?
+	handle_new_keyboard(seat, device, true);
+	update_capabilities(seat);
 }
 
 struct cg_seat *
