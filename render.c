@@ -193,7 +193,6 @@ output_render(struct cg_output *output, pixman_region32_t *damage)
 	int width, height;
 	wl_list_for_each_reverse (view, &server->views, link) {
 		view->impl->get_geometry(view, &width, &height);
-		wlr_log(WLR_DEBUG, "geo %dx%d", width, height);
 		render_view_toplevels(view, output, damage);
 	}
 

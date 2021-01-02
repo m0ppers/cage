@@ -17,16 +17,39 @@ handle_layer_shell_surface_commit(struct wl_listener *listener, void *data)
 	struct wlr_layer_surface_v1 *wlr_layer_surface = layer_shell->wlr_layer_surface;
 	struct cg_output *output = (struct cg_output *) wlr_layer_surface->output->data;
 
-	wlr_log(WLR_DEBUG, "Layer surface commited (%s)", wlr_layer_surface->namespace);
+	wlr_log(WLR_DEBUG, "Layer surface commited (%s) %dx%d", wlr_layer_surface->namespace, layer_shell->geo.x,
+		layer_shell->geo.y);
 
-	output_damage_surface(output, wlr_layer_surface->surface, layer_shell->geo.x, layer_shell->geo.y, true);
+	// struct wlr_box old_geo = layer_shell->geo;
+	// bool geo_changed = memcmp(&old_geo, &layer_shell->geo, sizeof(struct wlr_box)) != 0;
+	bool layer_changed = layer_shell->layer != wlr_layer_surface->current.layer;
+	if (layer_changed) {
+		wl_list_remove(&layer_shell->link);
+		wl_list_insert(&output->layers[wlr_layer_surface->current.layer], &layer_shell->link);
+		layer_shell->layer = wlr_layer_surface->current.layer;
+	}
+	// if (geo_changed || layer_changed) {
+	if (layer_changed) {
+		// output_damage_surface(output, wlr_layer_surface->surface, old_geo.x, old_geo.y, true);
+		output_damage_surface(output, wlr_layer_surface->surface, layer_shell->geo.x, layer_shell->geo.y, true);
+	} else {
+		output_damage_surface(output, wlr_layer_surface->surface, layer_shell->geo.x, layer_shell->geo.y,
+				      false);
+	}
 }
 
 static void
 handle_layer_shell_surface_map(struct wl_listener *listener, void *data)
 {
 	struct cg_layer_shell *layer_shell = wl_container_of(listener, layer_shell, map);
+	struct wlr_layer_surface_v1 *wlr_layer_surface = layer_shell->wlr_layer_surface;
+	struct cg_output *output = (struct cg_output *) wlr_layer_surface->output->data;
+
 	wlr_log(WLR_DEBUG, "Layer surface mapped (%s)", layer_shell->wlr_layer_surface->namespace);
+
+	output_damage_surface(output, layer_shell->wlr_layer_surface->surface, layer_shell->geo.x, layer_shell->geo.y,
+			      true);
+	wlr_surface_send_enter(layer_shell->wlr_layer_surface->surface, layer_shell->wlr_layer_surface->output);
 
 	// layer_shell->commit.notify = handle_layer_shell_surface_commit;
 	// wl_signal_add(&layer_shell->wlr_layer_surface->surface->events.commit, &layer_shell->commit);
@@ -40,8 +63,12 @@ static void
 handle_layer_shell_surface_unmap(struct wl_listener *listener, void *data)
 {
 	struct cg_layer_shell *layer_shell = wl_container_of(listener, layer_shell, unmap);
+	struct wlr_layer_surface_v1 *wlr_layer_surface = layer_shell->wlr_layer_surface;
+	struct cg_output *output = (struct cg_output *) wlr_layer_surface->output->data;
 	// struct cg_view *view = &layer_shell->view;
 	wlr_log(WLR_DEBUG, "Layer surface unmapped (%s)", layer_shell->wlr_layer_surface->namespace);
+	output_damage_surface(output, layer_shell->wlr_layer_surface->surface, layer_shell->geo.x, layer_shell->geo.y,
+			      true);
 
 	// view_damage_whole(view);
 

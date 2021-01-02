@@ -583,8 +583,6 @@ handle_cursor_button(struct wl_listener *listener, void *data)
 	struct cg_seat *seat = wl_container_of(listener, seat, cursor_button);
 	struct wlr_event_pointer_button *event = data;
 
-	wlr_log(WLR_DEBUG, "klicki!");
-
 	wlr_seat_pointer_notify_button(seat->seat, event->time_msec, event->button, event->state);
 	press_cursor_button(seat, event->device, event->time_msec, event->button, event->state, seat->cursor->x,
 			    seat->cursor->y);
